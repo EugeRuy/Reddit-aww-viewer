@@ -2,7 +2,7 @@
 
 import os
 import sqlite3
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, List, Any
 
 
 def get_db_path() -> str:
@@ -76,5 +76,47 @@ def insert_posts(posts: Iterable[Dict[str, Optional[object]]]) -> int:
         conn.commit()
         after = conn.total_changes
         return max(0, after - before)
+    finally:
+        conn.close()
+
+
+def count_posts() -> int:
+    conn = get_connection()
+    try:
+        ensure_schema(conn)
+        cur = conn.execute("SELECT COUNT(*) FROM posts")
+        row = cur.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+    finally:
+        conn.close()
+
+
+def list_posts(limit: int, offset: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        ensure_schema(conn)
+        cur = conn.execute(
+            'SELECT id, title, "text", thumbnail, link, created_utc FROM posts ORDER BY created_utc DESC LIMIT ? OFFSET ?',
+            (int(limit), int(offset)),
+        )
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_post(post_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        ensure_schema(conn)
+        cur = conn.execute(
+            'SELECT id, title, "text", thumbnail, link, created_utc FROM posts WHERE id = ?',
+            (post_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cols = [c[0] for c in cur.description]
+        return dict(zip(cols, row))
     finally:
         conn.close()
